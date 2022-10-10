@@ -63,3 +63,65 @@ module.exports.getCategories = function(){
         }
     })
 }
+
+module.exports.addPost = function(postData){
+    return new Promise((resolve, reject)=>{
+        postData.id = posts.length + 1;
+        postData.published = (postData.published)? true : false;
+        posts.push(postData);
+        resolve();
+    })
+}
+
+module.exports.getPostsByCategory = function(category) {
+    return new Promise((resolve, reject)=>{
+        var filteredposts = [];
+        for(let i = 0; i< posts.length; i++ ){
+            if(posts[i].category == category){
+                filteredposts.push(posts[i]);
+            }
+        }
+        if(filteredposts.length == 0){
+            reject("category posts no results returned!");
+        }
+        else{
+            resolve(filteredposts);
+        }
+    });
+
+}
+
+
+module.exports.getPostsByMinDate = function(minDateStr) {
+    return new Promise((resolve, reject)=>{
+        var filteredposts = [];
+        for(let i = 0; i< posts.length; i++ ){
+            if(posts[i].postDate >= minDateStr ){
+                filteredposts.push(posts[i]);
+            }
+        }
+        if(filteredposts.length == 0){
+            reject("postDate posts no results returned!");
+        }
+        else{
+            resolve(filteredposts);
+        }
+    });
+}
+
+module.exports.getPostById= function(value)  {
+    return new Promise((resolve, reject)=>{
+        var filteredposts = [];
+        for(let i = 0; i< posts.length; i++ ){
+            if(posts[i].id == value ){
+                filteredposts.push(posts[i]);
+            }
+        }
+        if(filteredposts.length == 0){
+            reject("id posts no results returned!");
+        }
+        else{
+            resolve(filteredposts);
+        }
+    });
+}
