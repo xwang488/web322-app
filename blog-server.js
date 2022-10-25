@@ -24,11 +24,31 @@ module.exports.initialize = function(){
     });
 }
 
+
+
 module.exports.getPublishedPosts=()=>{
     return new Promise((resolve, reject)=>{
         var filteredposts = [];
         for(let i = 0; i< posts.length; i++ ){
             if(posts[i].published == true){
+                filteredposts.push(posts[i]);
+            }
+        }
+
+        if(filteredposts.length == 0){
+            reject("Published posts no results returned!");
+        }
+        else{
+            resolve(filteredposts);
+        }
+    });
+}
+
+module.exports.getPublishedPostsByCategory=(category)=>{
+    return new Promise((resolve, reject)=>{
+        var filteredposts = [];
+        for(let i = 0; i< posts.length; i++ ){
+            if(posts[i].published == true && posts[i].category == category){
                 filteredposts.push(posts[i]);
             }
         }
@@ -65,9 +85,15 @@ module.exports.getCategories = function(){
 }
 
 module.exports.addPost = function(postData){
+    var currDate = new Date();
+    var day = currDate.toLocaleString('en-US', { day: '2-digit'});
+    var month = currDate.toLocaleString('en-US', { month: '2-digit'});
+    var year = currDate.getFullYear();
+    var m_postDate = year  + "-" + month + "-" + day;
     return new Promise((resolve, reject)=>{
         postData.id = posts.length + 1;
         postData.published = (postData.published)? true : false;
+        postData.postDate = m_postDate;
         posts.push(postData);
         resolve();
     })
@@ -109,19 +135,14 @@ module.exports.getPostsByMinDate = function(minDateStr) {
     });
 }
 
-module.exports.getPostById= function(value)  {
-    return new Promise((resolve, reject)=>{
-        var filteredposts = [];
-        for(let i = 0; i< posts.length; i++ ){
-            if(posts[i].id == value ){
-                filteredposts.push(posts[i]);
-            }
-        }
-        if(filteredposts.length == 0){
-            reject("id posts no results returned!");
-        }
-        else{
-            resolve(filteredposts);
+module.exports.getPostById = function(id){
+    return new Promise((resolve,reject)=>{
+        let foundPost = posts.find(post => post.id == id);
+
+        if(foundPost){
+            resolve(foundPost);
+        }else{
+            reject("no result returned");
         }
     });
 }
