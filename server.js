@@ -1,10 +1,10 @@
 /*********************************************************************************
-*  WEB322 – Assignment 4
+*  WEB322 – Assignment 5
 *  I declare that this assignment is my own work in accordance with Seneca  Academic Policy.  
 *  No part of this assignment has been copied manually or electronically from any other source
 *  (including web sites) or distributed to other students.
 * 
-*  Name: Jennifer Wang  Student ID: 169554219 Date: 10 October 2022
+*  Name: Jennifer Wang  Student ID: 169554219 Date: 11 NOV 2022
 *
 *  Online (Cyclic) URL:  https://plain-poncho-moth.cyclic.app
 *
@@ -22,11 +22,11 @@ const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
 //const fs = require("fs");
 
-// 	This use for text only(no images)
+// This use for text only(no images)
 //const bodyParser = require('body-parser');
 //app. use(bodyParser.urlencoded({ extended: true }));  
 app.use(express.static('public')); 
-
+app.use(express.urlencoded({extended: true}));
 
 const stripJs = require('strip-js');
 //This used for handlebar
@@ -51,7 +51,13 @@ app.engine('.hbs', exphbs.engine({
 		},
 		safeHTML: function(context){
 			return stripJs(context);
-		}						
+		},
+		formatDate: function(dateObj){
+			let year = dateObj.getFullYear();
+			let month = (dateObj.getMonth() + 1).toString();
+			let day = dateObj.getDate().toString();
+			return `${year}-${month.padStart(2, '0')}-${day.padStart(2,'0')}`;
+		}	
 	}
 }));
 
@@ -85,6 +91,7 @@ function onHttpStart(){
 
 // Without middleware
 app.get('/', function(req, res){
+	//console.log("ok");
 	res.redirect('/blog');
 });
 
@@ -96,6 +103,9 @@ app.get('/about', function(req, res){
 
 	
 });
+
+
+
 
 
 app.get('/blog', async (req, res) => {
@@ -178,6 +188,7 @@ app.get('/blog/:id', async (req, res) => {
     try{
         // Obtain the post by "id"
         viewData.post = await data.getPostById(req.params.id);
+
     }catch(err){
         viewData.message = "no results"; 
     }
@@ -195,6 +206,7 @@ app.get('/blog/:id', async (req, res) => {
     // render the "blog" view with all of the data (viewData)
     res.render("blog", {data: viewData})
 });
+
 
 app.get('/posts',(req, res) =>{
 	if(req.query.category){
@@ -218,7 +230,10 @@ app.get('/posts',(req, res) =>{
 	else{
 		data.getAllPosts().then((data)=>{
 			//res.json(data);
-			res.render("posts", {posts: data});
+			if(data.length >0){
+				res.render("posts", {posts: data});
+			}else{res.render("posts", {message: "no results"});}
+			
 		}).catch((err)=>{
 			//res.json({message:err});
 			res.render("posts", {message: "no results"});
@@ -240,19 +255,71 @@ app.get('/categories',(req, res) =>{
 
 	data.getCategories().then((data)=>{		
 		//res.json(data);
-		res.render("categories", {categories: data});
+		if(data.length >0){res.render("categories", {categories: data});}
+		else{
+			res.render("categories", {message: "no results"});
+		}
 	}).catch((err)=>{
 		res.render("categories", {message: "no results"});
 	})
 });
 
 app.get('/posts/add',(req,res)=>{
-	//res.sendFile(path.join(__dirname,"/views/addPost.html" ));
-	res.render("addPost");
+
+	data.getCategories()
+	.then(data=> res.render("addPost", {categories: data}))
+	.catch(err => res.render("addPost", {categories: []}))
 })
 
+/*
+app.post("/posts/add", upload.single("featureImage"), (req,res)=>{
+
+    if(req.file){
+        let streamUpload = (req) => {
+            return new Promise((resolve, reject) => {
+                let stream = cloudinary.uploader.upload_stream(
+                    (error, result) => {
+                        if (result) {
+                            resolve(result);
+                        } else {
+                            reject(error);
+                        }
+                    }
+                );
+    
+                streamifier.createReadStream(req.file.buffer).pipe(stream);
+            });
+        };
+    
+        async function upload(req) {
+            let result = await streamUpload(req);
+            console.log(result);
+            return result;
+        }
+    
+        upload(req).then((uploaded)=>{
+            processPost(uploaded.url);
+        });
+    }else{
+        processPost("");
+    }
+
+    function processPost(imageUrl){
+        req.body.featureImage = imageUrl;
+
+        data.addPost(req.body).then(post=>{
+            res.redirect("/posts");
+        }).catch(err=>{
+            res.status(500).send(err);
+        })
+    }   
+});
+
+*/
+
+
 app.post('/posts/add', upload.single("featureImage"), (req,res)=>{
-	//res.sendFile(path.join(__dirname,"/views/addPost.html" ));
+
 	let streamUpload = (req) => {
 		return new Promise((resolve, reject) => {
 			let stream = cloudinary.uploader.upload_stream(
@@ -286,10 +353,40 @@ app.post('/posts/add', upload.single("featureImage"), (req,res)=>{
 	});
 });
 
+app.get('/categories/add',(req,res)=>{
+	res.render("addCategory");
+})
 
-app.use((req,res)=>{
-	res.status(404).render("404",{layout: false});
+app.post('/categories/add',(req,res)=>{
+	data.addCategory(req.body).then(() => {
+		res.redirect("/categories");			
+	})
 });
+
+
+
+app.get('/posts/delete/:id',(req,res)=>{
+	data.deletePostById(req.params.id).then(() => {
+        res.redirect("/posts");
+    }).catch((err) => {
+        res.status(500).send( "Unable to Remove Post / Post not found");
+    })
+})
+
+
+app.get('/categories/delete/:id',(req,res)=>{
+	data.deleteCategoryById(req.params.id).then(() => {
+        res.redirect("/categories");
+    }).catch((err) => {
+        res.status(500).send( "Unable to Remove Category / Category not found");
+    })
+})
+
+
+
+//app.use((req,res)=>{
+	//res.status(404).render("404",{layout: false});
+//});
 
  data.initialize().then(function(){
 	app.listen(HTTP_PORT, onHttpStart);
