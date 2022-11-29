@@ -13,14 +13,43 @@
 
 const express = require ("express");
 const app = express();
-
 const path = require("path");
 const data = require("./blog-server.js");
+//new Assigment6
+const authData = require("./auth-service.js");
+//This used for handlebar
+const exphbs = require('express-handlebars');
+//new Assigment6
+//this is used for client-session
+const clientSessions = require("client-sessions");
 //This used for text and images...
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
-//const fs = require("fs");
+//This used for handlebar
+app.set('view engine', '.hbs');
+
+
+
+var HTTP_PORT = process.env.PORT || 8080;			
+const upload = multer(); 
+
+ // Setup client-sessions
+ //new Assigment6
+app.use(clientSessions({
+    cookieName: "session", // this is the object name that will be added to 'req'
+    secret: "week10Assignment_web322", // this should be a long un-guessable string.
+    duration: 2 * 60 * 1000, // duration of the session in milliseconds (2 minutes)
+    activeDuration: 1000// the session will be extended by this many ms each request (1 minute)
+  }));
+
+// custom middleware to add session to all the view (res)
+//new Assigment6
+  app.use(function(req, res, next) {
+	res.locals.session = req.session;
+	next();
+  });
+  
 
 // This use for text only(no images)
 //const bodyParser = require('body-parser');
@@ -29,8 +58,7 @@ app.use(express.static('public'));
 app.use(express.urlencoded({extended: true}));
 
 const stripJs = require('strip-js');
-//This used for handlebar
-const exphbs = require('express-handlebars');
+
 // this used for handlebar and help functions
 app.engine('.hbs', exphbs.engine({ 
 	extname: '.hbs',
@@ -61,11 +89,6 @@ app.engine('.hbs', exphbs.engine({
 	}
 }));
 
-//This used for handlebar
-app.set('view engine', '.hbs');
-
-var HTTP_PORT = process.env.PORT || 8080;			
-const upload = multer(); 
 
 cloudinary.config({
 	cloud_name: "dofgszlie",
@@ -83,15 +106,23 @@ app.use(function(req,res,next){
 });
 
 
-
-
 function onHttpStart(){
-    console.log("Express http server is listening on: " + HTTP_PORT);
+    console.log("app listening on: " + HTTP_PORT);
 }
+
+//new Assigment6
+function ensureLogin(req, res, next) {
+    if (!req.session.user) {
+      res.redirect("/login");
+    } else {
+      next();
+    }
+  }
+
 
 // Without middleware
 app.get('/', function(req, res){
-	//console.log("ok");
+
 	res.redirect('/blog');
 });
 
@@ -99,14 +130,48 @@ app.get('/about', function(req, res){
 	//console.log(path.join(__dirname,"/views/about.html" ));
     //res.sendFile(path.join(__dirname,"/views/about.html" ));
 	//res.render("layouts/main");
-	res.render("about");
-
+	res.render("about");	
+});
+//login
+//new Assigment6
+app.get('/login', (req,res)=>{
+	res.render("login");
+});
+//new Assigment6
+app.get('/register', (req,res)=>{
+	res.render("register");
+});
+//new Assigment6
+app.post('/register', (req,res)=>{
+	authData.registerUser(req.body)
+	.then(()=>{res.render("register", {successMessage: "User created"} );})
+	.catch(err => res.render("register", {errorMessage: err, userName:req.body.userName }) )
+});
+//new Assigment6
+app.post('/login',(req,res)=>{
+	req.body.userAgent = req.get('User-Agent');
+	authData.checkUser(req.body).then((user) => {
+		req.session.user = {
+			userName: user.userName, // authenticated user's userName
+			email: user.email,// authenticated user's email
+			loginHistory: user.loginHistory // authenticated user's loginHistory
+		}
+	
+		res.redirect('/posts');
+	}).catch((err)=>{res.render("login", {errorMessage: err, userName: req.body.userName} );})
 	
 });
-
-
-
-
+//new Assigment6
+//logout
+app.get("/logout", function(req, res) {
+    req.session.reset();
+    res.redirect("/");
+  });
+//new Assigment6 
+//get userhistory
+app.get("/userHistory", ensureLogin, function(req, res) {
+    res.render("userHistory", {user:req.session.user});
+  });
 
 app.get('/blog', async (req, res) => {
 
@@ -156,7 +221,7 @@ app.get('/blog', async (req, res) => {
 
 });
 
-app.get('/blog/:id', async (req, res) => {
+app.get('/blog/:id', ensureLogin, async (req, res) => {
 
     // Declare an object to store properties for the view
     let viewData = {};
@@ -208,7 +273,7 @@ app.get('/blog/:id', async (req, res) => {
 });
 
 
-app.get('/posts',(req, res) =>{
+app.get('/posts', ensureLogin, (req, res) =>{
 	if(req.query.category){
 		data.getPostsByCategory(req.query.category).then((data)=>{
 			//res.json({data});
@@ -242,7 +307,7 @@ app.get('/posts',(req, res) =>{
 	
 });
 
-app.get('/post/:value', (req,res) => {
+app.get('/post/:value', ensureLogin, (req,res) => {
     data.getPostById(req.params.value).then((data) => {
         res.json({data});
     }).catch((err) => {
@@ -251,7 +316,7 @@ app.get('/post/:value', (req,res) => {
 });
 
 
-app.get('/categories',(req, res) =>{
+app.get('/categories', ensureLogin, (req, res) =>{
 
 	data.getCategories().then((data)=>{		
 		//res.json(data);
@@ -264,61 +329,15 @@ app.get('/categories',(req, res) =>{
 	})
 });
 
-app.get('/posts/add',(req,res)=>{
+app.get('/posts/add', ensureLogin, (req,res)=>{
 
 	data.getCategories()
 	.then(data=> res.render("addPost", {categories: data}))
 	.catch(err => res.render("addPost", {categories: []}))
 })
 
-/*
-app.post("/posts/add", upload.single("featureImage"), (req,res)=>{
 
-    if(req.file){
-        let streamUpload = (req) => {
-            return new Promise((resolve, reject) => {
-                let stream = cloudinary.uploader.upload_stream(
-                    (error, result) => {
-                        if (result) {
-                            resolve(result);
-                        } else {
-                            reject(error);
-                        }
-                    }
-                );
-    
-                streamifier.createReadStream(req.file.buffer).pipe(stream);
-            });
-        };
-    
-        async function upload(req) {
-            let result = await streamUpload(req);
-            console.log(result);
-            return result;
-        }
-    
-        upload(req).then((uploaded)=>{
-            processPost(uploaded.url);
-        });
-    }else{
-        processPost("");
-    }
-
-    function processPost(imageUrl){
-        req.body.featureImage = imageUrl;
-
-        data.addPost(req.body).then(post=>{
-            res.redirect("/posts");
-        }).catch(err=>{
-            res.status(500).send(err);
-        })
-    }   
-});
-
-*/
-
-
-app.post('/posts/add', upload.single("featureImage"), (req,res)=>{
+app.post('/posts/add', ensureLogin, upload.single("featureImage"), (req,res)=>{
 
 	let streamUpload = (req) => {
 		return new Promise((resolve, reject) => {
@@ -353,11 +372,11 @@ app.post('/posts/add', upload.single("featureImage"), (req,res)=>{
 	});
 });
 
-app.get('/categories/add',(req,res)=>{
+app.get('/categories/add', ensureLogin, (req,res)=>{
 	res.render("addCategory");
 })
 
-app.post('/categories/add',(req,res)=>{
+app.post('/categories/add', ensureLogin, (req,res)=>{
 	data.addCategory(req.body).then(() => {
 		res.redirect("/categories");			
 	})
@@ -365,7 +384,7 @@ app.post('/categories/add',(req,res)=>{
 
 
 
-app.get('/posts/delete/:id',(req,res)=>{
+app.get('/posts/delete/:id', ensureLogin, (req,res)=>{
 	data.deletePostById(req.params.id).then(() => {
         res.redirect("/posts");
     }).catch((err) => {
@@ -374,7 +393,7 @@ app.get('/posts/delete/:id',(req,res)=>{
 })
 
 
-app.get('/categories/delete/:id',(req,res)=>{
+app.get('/categories/delete/:id', ensureLogin,(req,res)=>{
 	data.deleteCategoryById(req.params.id).then(() => {
         res.redirect("/categories");
     }).catch((err) => {
@@ -388,9 +407,21 @@ app.get('/categories/delete/:id',(req,res)=>{
 	//res.status(404).render("404",{layout: false});
 //});
 
+
+/*
  data.initialize().then(function(){
 	app.listen(HTTP_PORT, onHttpStart);
 }).catch(function(err){
-	console.log("Unavle to start server: " + err);
+	console.log("Unable to start server: " + err);
+});
+*/
+
+
+data.initialize()
+.then(authData.initialize)
+.then(function(){
+    app.listen(HTTP_PORT, onHttpStart);
+}).catch(function(err){
+    console.log("unable to start server: " + err);
 });
 
